@@ -9,7 +9,8 @@ uses
   Vcl.Forms,
   Misc,
   MainForm in 'MainForm.pas' {frmMain},
-  PsUtils in '..\lib\PsUtils.pas';
+  PsUtils in '..\lib\PsUtils.pas',
+  MessageDialog in 'MessageDialog.pas' {InfoMsgDlg};
 
 {$R *.res}
 
@@ -19,5 +20,6 @@ begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
   Application.CreateForm(TfrmMain, frmMain);
+  Application.CreateForm(TInfoMsgDlg, InfoMsgDlg);
   Application.Run;
 end.

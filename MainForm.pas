@@ -41,6 +41,7 @@ type
     volt_max: Double;
    batt_vmin: Single;
    batt_vmax: Single;
+    slConfig: TStrMap;
 
 
 
@@ -63,7 +64,7 @@ var
 
 
 implementation
-uses DateTimeTools;
+uses DateTimeTools, MessageDialog;
 
 resourcestring
      script_name = 'upsc.lua';
@@ -303,12 +304,13 @@ begin
  // if status = 'IM' then exit;
  if warn_lvl >= 5 then
    begin
-    FormStyle := fsStayOnTop;
+    // FormStyle := fsStayOnTop;
     Activate;
     BringToFront;
     ShowWindow (Handle, SW_SHOW);
     Application.ProcessMessages;
-    ShowMessage('UPS status changed to ' + status);
+    InfoMsgDlg.lbInfo.Caption := 'UPS status changed to "' + status + '"';
+    InfoMsgDlg.ShowModal;
     FormStyle := fsNormal;
    end
  else
@@ -317,6 +319,9 @@ begin
 end;
 
 procedure TfrmMain.btnOpenPortClick(Sender: TObject);
+var
+   i: Integer;
+
 begin
  cpMain.Port := 'COM' + IntToStr ( spePortNumber.Value );
  cpMain.Events := [];
@@ -335,14 +340,28 @@ begin
  if cpMain.Connected then
     begin
      ODS('[~T]. #DBG: Connected');
+     lua_newtable(le.State);
+     for i := 0 to slConfig.Count - 1 do
+         lua_setmap_s (le.State, slConfig.Names[i], slConfig.ValueFromIndex[i]);
+
+     if lua_istable(le.State, -1) then
+       begin
+        le.SetGlobal('config');
+        wprintf('[~T]. #DBG: config table pushed, stack top %d', [lua_gettop(le.State)]);
+       end;
+
+
+
      QueryStatus;
+
      btnOpenPort.Enabled := FALSE;
      btnSendCommand.Enabled := TRUE;
 
      lua_pushnumber (le.State, batt_vmin);
-     lua_setglobal  (le.State, 'BATT_VOLTAGE_MIN');
+     le.SetGlobal ('BATT_VOLTAGE_MIN');
      lua_pushnumber (le.State, batt_vmax);
-     lua_setglobal  (le.State, 'BATT_VOLTAGE_MAX');
+     le.SetGlobal ('BATT_VOLTAGE_MAX');
+
 
      le.CallFunc('init');
     end;
@@ -368,9 +387,10 @@ var
 begin
  evt := TEvent.Create ( nil, TRUE, FALSE, '' );
  le := TLuaEngine.Create;
+
  txbuff := TStrMap.Create(self);
  vst_cache := TStrmap.Create(self);
-
+ slConfig := TStrMap.Create(self);
 
 
  if FileExists(script_name) and le.LoadScript(script_name) then
@@ -414,6 +434,7 @@ begin
  FreeAndNil (evt);
  FreeAndNil (txbuff);
  FreeAndNil (vst_cache);
+ FreeAndNil (slConfig);
  le.Free;
 end;
 
@@ -442,6 +463,8 @@ begin
 
  fini := TIniFile.Create(fcfg);
  try
+  fini.ReadSectionValues ('config', slConfig);
+
   vst_file := fini.ReadString('config', 'voltage_stats_file', '');
 
   batt_vmin := fini.ReadFloat( 'config', 'batt_voltage_min', 84.0);
