@@ -24,6 +24,11 @@ function init()
     
  end
  
+ ODS("#DBG(upsc.lua:init)~C0F global config dump:~C07")
+ for k,v in pairs(config) do
+  wprintf(" %s = %s", k, v)
+ end
+ 
 end
 
 local last_status = 'IXM'
@@ -125,8 +130,13 @@ end
 
 
 function parse_rx(rx)
- if rx:byte(1) == 40 then
+
+ local fc = rx:byte(1) 
+ if fc == 40 then
     rx = rx:sub(2)
+ else
+    wprintf("[%s] rejected due first char = %d", rx, fc);
+    return false    
  end
  
   
@@ -171,6 +181,24 @@ function parse_rx(rx)
  
  if ( status:len() == 8 ) and only_chars(status, "01") == 8 then
     --  (235.1 235.1 220.2   7 50.0 2.30 36.0 00000001
+    -- TODO: load patter from config
+    -- local pattern = "%d%d%d.%d %d%d%d.%d %d%d%d.%d %d%d %d%d.%d %d.%d%d %d%d.%d [0-1]*"
+    local pattern = config['msg_pattern'];
+    
+    if (pattern == nil) or (pattern:len() < 10) then 
+       pattern = "%d%d%d.%d %d%d%d.%d %d%d%d.%d %d%d%d %d%d.%d %d.%d%d %d%d.%d [0-1]*"
+    end    
+        
+    local test = rx:match(pattern)
+    if test then
+      rx = test
+    else
+      wprintf ("#WARN: [%s] not matched for pattern [%s]!", rx, pattern);
+      return      
+    end
+    
+    
+    
     local vals = split_str(rx, "([%S]*) ")    
     
     
